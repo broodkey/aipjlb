@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
 # 引用Web Server套件
 from flask import Flask, request, abort
 
@@ -13,6 +19,9 @@ from linebot.exceptions import (
 
 # 載入json處理套件
 import json
+
+
+# In[ ]:
 
 
 # 載入基礎設定檔
@@ -44,6 +53,10 @@ def callback():
 
     return 'OK'
 
+
+# In[ ]:
+
+
 # 將消息模型，文字收取消息與文字寄發消息 引入
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, ImageSendMessage
@@ -51,8 +64,7 @@ from linebot.models import (
 
 # 消息清單
 reply_message_list = [
-    TextSendMessage(text="test1"),
-    TextSendMessage(text="test2"),
+    TextSendMessage(text="歡迎加入好友"),
 ]
 
 # 載入Follow事件
@@ -82,14 +94,204 @@ def reply_text_and_get_user_profile(event):
         reply_message_list
     )
 
+
+# In[ ]:
+
+
+'''
+
+若收到圖片消息時，
+
+先回覆用戶文字消息，並從Line上將照片拿回。
+
+'''
+# 將消息模型，文字收取消息與文字寄發消息 引入
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,ImageMessage
+)
+
+import csv
+
+@handler.add(MessageEvent, message=ImageMessage)
+def handle_message(event):
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text='Image has Upload'+ ' ' + event.message.id))
+    
+    user_id_exist = 0
+    dict_to_file = {}
+    for d in collect_report:
+        if d['user_id'] == event.source.user_id:
+            d['image_name'] = event.message.id+'.jpg'
+            user_id_exist = 1
+            dict_to_file = d
+            break
+    if user_id_exist == 0:
+        return 'OK'
+    
+    message_content = line_bot_api.get_message_content(event.message.id)
+    with open('images/'+event.message.id+'.jpg', 'wb') as fd:
+        for chunk in message_content.iter_content():
+            fd.write(chunk)
+            
+    # 將資訊存在檔案內
+    if len(dict_to_file) == 7:
+        with open('user_report.csv', "a", encoding="utf-8") as csvfile:
+            csv_writer = csv.writer(csvfile, delimiter=',')
+            csv_writer.writerow([dict_to_file['display_name'],
+                                 dict_to_file['user_id'],
+                                 dict_to_file['address'],
+                                 dict_to_file['latitude'],
+                                 dict_to_file['longitude'],
+                                 dict_to_file['image_name']
+                                ])
+        collect_report.remove(dict_to_file)
+        print(collect_report)
+
+
+# In[ ]:
+
+
+# 將消息模型，文字收取消息與文字寄發消息 引入
+from linebot.models import (
+    MessageEvent, LocationMessage
+)
+
+import csv
+
+# 用戶點擊傳送位置，觸發LocationMessage，對其回傳做相對應處理
+@handler.add(MessageEvent, message=LocationMessage)
+def handle_location_message(event):
+    # 取出消息內User的資料
+    user_profile = line_bot_api.get_profile(event.source.user_id)
+    display_name = vars(user_profile)["display_name"]
+    user_id = vars(user_profile)["user_id"]
+    address = event.message.address
+    latitude = event.message.latitude
+    longitude = event.message.longitude
+
+    user_id_exist = 0
+    dict_to_file = {}
+    for d in collect_report:
+        if d['user_id'] == event.source.user_id:
+            d['display_name'] = display_name
+            d['address'] = address
+            d['latitude'] = latitude
+            d['longitude'] = longitude
+            user_id_exist = 1
+            dict_to_file = d
+            break
+    if user_id_exist == 0:
+        return 'OK'
+
+    # 將資訊存在檔案內
+    if len(dict_to_file) == 7:
+        with open('user_report.csv', "a", encoding="utf-8") as csvfile:
+            csv_writer = csv.writer(csvfile, delimiter=',')
+            csv_writer.writerow([dict_to_file['display_name'],
+                                 dict_to_file['user_id'],
+                                 dict_to_file['address'],
+                                 dict_to_file['latitude'],
+                                 dict_to_file['longitude'],
+                                 dict_to_file['image_name']
+                                ])
+        collect_report.remove(dict_to_file)
+        print(collect_report)
+
+
+# In[ ]:
+
+
+#引入所需要的消息與模板消息
+from linebot.models import (
+    MessageEvent, TemplateSendMessage , PostbackEvent
+)
+
+#引入按鍵模板
+from linebot.models.template import(
+    ButtonsTemplate
+)
+
+ButtonsTemplateJsonString = """
+{
+  "type": "template",
+  "altText": "this is a buttons template",
+  "template": {
+    "type": "buttons",
+    "actions": [
+      {
+        "type": "uri",
+        "label": "上傳照片",
+        "uri": "line://nv/cameraRoll/single"
+      },
+      {
+        "type": "uri",
+        "label": "回報位置",
+        "uri": "line://nv/location"
+      }
+    ],
+    "title": "道路坑洞回報",
+    "text": "照片及位置"
+  }
+}
+"""
+ButtonsTemplate = TemplateSendMessage.new_from_json_dict(json.loads(ButtonsTemplateJsonString))
+
+
+# In[ ]:
+
+
+@handler.add(PostbackEvent)
+def handle_post_message(event):
+    user_profile = line_bot_api.get_profile(event.source.user_id)
+    
+    user_id_exist = 0
+    if (event.postback.data.find('資料 1') == 0):
+        for d in collect_report:
+            if d['user_id'] == event.source.user_id:
+                d['token'] = event.reply_token
+                user_id_exist = 1
+                break
+        if user_id_exist == 0:
+            collect_report.append({'user_id':event.source.user_id, 'token':event.reply_token})
+            
+        print(collect_report)
+        line_bot_api.reply_message(
+            event.reply_token,
+            ButtonsTemplate)
+
+
+# In[ ]:
+
+
+# 產生user_report.csv 紀錄使用者回報照片以及位置
+import os
+import csv
+# 若user_report.csv不存在則新增檔案並寫好欄位名稱
+if os.path.exists('user_report.csv') == False:
+    with open('user_report.csv', 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile, delimiter=',')
+        csv_writer.writerow(['display_name', 'user_id', 
+                             'address', 'latitude', 'longitude', 
+                             'image_name'])
+collect_report = []
+
+
+# In[ ]:
+
+
 #  '''
 
 #  執行此句，啟動Server，觀察後，按左上方塊，停用Server
 
 #  '''
 
- # if __name__ == "__main__":
- #     app.run(host='0.0.0.0')
+# if __name__ == "__main__":
+#     app.run(host='0.0.0.0')
+
+
+# In[ ]:
+
 
 #  '''
 
@@ -100,3 +302,7 @@ def reply_text_and_get_user_profile(event):
 import os
 if __name__ == "__main__":
     app.run(host='0.0.0.0',port=os.environ['PORT'])
+
+
+
+
