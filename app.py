@@ -80,7 +80,7 @@ def reply_text_and_get_user_profile(event):
     user_profile = line_bot_api.get_profile(event.source.user_id)
 
     # 將用戶資訊存在檔案內
-    with open("users.txt", "a") as myfile:
+    with open("./users.txt", "a") as myfile:
         myfile.write(json.dumps(vars(user_profile), sort_keys=True))
         myfile.write('\r\n')
 
@@ -130,13 +130,13 @@ def handle_message(event):
         return 'OK'
     
     message_content = line_bot_api.get_message_content(event.message.id)
-    with open('images/'+event.message.id+'.jpg', 'wb') as fd:
+    with open('./images/'+event.message.id+'.jpg', 'wb') as fd:
         for chunk in message_content.iter_content():
             fd.write(chunk)
             
     # 將資訊存在檔案內
     if len(dict_to_file) == 7:
-        with open('user_report.csv', "a", encoding="utf-8") as csvfile:
+        with open('./user_report.csv', "a", encoding="utf-8") as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=',')
             csv_writer.writerow([dict_to_file['display_name'],
                                  dict_to_file['user_id'],
@@ -186,7 +186,7 @@ def handle_location_message(event):
 
     # 將資訊存在檔案內
     if len(dict_to_file) == 7:
-        with open('user_report.csv', "a", encoding="utf-8") as csvfile:
+        with open('./user_report.csv', "a", encoding="utf-8") as csvfile:
             csv_writer = csv.writer(csvfile, delimiter=',')
             csv_writer.writerow([dict_to_file['display_name'],
                                  dict_to_file['user_id'],
@@ -268,13 +268,45 @@ def handle_post_message(event):
 import os
 import csv
 # 若user_report.csv不存在則新增檔案並寫好欄位名稱
-if os.path.exists('user_report.csv') == False:
-    with open('user_report.csv', 'w', newline='') as csvfile:
+if os.path.exists('./user_report.csv') == False:
+    with open('./user_report.csv', 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile, delimiter=',')
         csv_writer.writerow(['display_name', 'user_id', 
                              'address', 'latitude', 'longitude', 
                              'image_name'])
 collect_report = []
+
+# 若users.txt不存在則新增檔案
+if os.path.exists('./users.txt') == False:
+    f = open('./users.txt', 'w')
+    f.close()
+
+# 若images資料夾不存在則新增
+if os.path.isdir('./images') == False:
+    os.makedirs('./images')
+
+# 使用debug
+@app.route("/debug", methods=['GET'])
+def check_files():
+    print('list ./:', os.listdir('./'))
+    print('users.txt')
+    f = open('./users.txt', 'r')
+    data = f.readlines()
+    for d in data:
+        print(d)
+    f.close()
+
+    print('user_report.csv')
+    f = open('./user_report.csv', 'r')
+    data = f.readlines()
+    for d in data:
+        print(d)
+    f.close()
+
+    print('images/')
+    print(os.listdir('./images/'))
+
+    return 'OK'
 
 
 # In[ ]:
